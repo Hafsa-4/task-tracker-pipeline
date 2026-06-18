@@ -2,15 +2,32 @@
   become: true
   tasks:
     - name: Install Docker
-      yum: name=docker state=present
+      apt:
+        name: docker.io
+        state: present
+        update_cache: yes
+
     - name: Start Docker
-      service: name=docker state=started enabled=true
-    - name: Pull image
-      shell: docker pull {{ ecr_registry }}/task-tracker:{{ image_tag }}
+      service:
+        name: docker
+        state: started
+        enabled: true
+
+    - name: Copy image to host
+      copy:
+        src: /tmp/task-tracker-{{ image_tag }}.tar
+        dest: /tmp/task-tracker-{{ image_tag }}.tar
+
+    - name: Load image
+      shell: docker load -i /tmp/task-tracker-{{ image_tag }}.tar
+
+    - name: Stop existing container
+      shell: docker rm -f task-tracker || true
+
     - name: Run container
-      shell: |
-        docker rm -f task-tracker || true
-        docker run -d --name task-tracker \
-          -p 5000:5000 \
-          -e DYNAMODB_TABLE=tasks \
-          {{ ecr_registry }}/task-tracker:{{ image_tag }}
+      shell: >
+        docker run -d --name task-tracker
+        -p 5000:5000
+        -e DYNAMODB_TABLE=tasks
+        -e AWS_REGION=us-east-1
+        task-tracker:{{ image_tag }}
