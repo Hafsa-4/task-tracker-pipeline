@@ -1,14 +1,10 @@
 pipeline {
   agent any
-  environment {
-    ECR = "<account-id>.dkr.ecr.us-east-1.amazonaws.com"
-  }
   stages {
-    stage("Build & Push") {
+    stage("Build") {
       steps {
         script { env.TAG = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim() }
-        sh "docker build -t ${ECR}/task-tracker:${TAG} ./app"
-        sh "docker push ${ECR}/task-tracker:${TAG}"
+        sh "docker build -t task-tracker:${env.TAG} ./app"
       }
     }
     stage("Approve") {
@@ -16,7 +12,8 @@ pipeline {
     }
     stage("Deploy") {
       steps {
-        sh "ansible-playbook -i ansible/inventory.ini ansible/deploy.yml -e image_tag=${env.TAG} -e ecr_registry=${ECR}"
+        sh "docker rm -f task-tracker || true"
+        sh "docker run -d --name task-tracker -p 5000:5000 -e DYNAMODB_TABLE=tasks -e AWS_REGION=us-east-1 -e AWS_ACCESS_KEY_ID=${env.AWS_ACCESS_KEY_ID} -e AWS_SECRET_ACCESS_KEY=${env.AWS_SECRET_ACCESS_KEY} task-tracker:${env.TAG}"
       }
     }
   }
