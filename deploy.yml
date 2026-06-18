@@ -1,0 +1,16 @@
+- hosts: app
+  become: true
+  tasks:
+    - name: Install Docker
+      yum: name=docker state=present
+    - name: Start Docker
+      service: name=docker state=started enabled=true
+    - name: Pull image
+      shell: docker pull {{ ecr_registry }}/task-tracker:{{ image_tag }}
+    - name: Run container
+      shell: |
+        docker rm -f task-tracker || true
+        docker run -d --name task-tracker \
+          -p 5000:5000 \
+          -e DYNAMODB_TABLE=tasks \
+          {{ ecr_registry }}/task-tracker:{{ image_tag }}
